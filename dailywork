@@ -1,0 +1,80 @@
+AbstractQueuedSynchronizer  
+    // 通过FIFO队列来完成资源获取线程的排队情况
+    volatile Node head;
+    volatile Node tail;
+    // 表示同步状态
+    volatile int state  
+
+同步器的主要使用方式是继承，子类通过继承同步器并实现它的抽象方法来管理同步状态，
+    独占式
+        tryAcquire  获取同步状态，实现该方法需要查询当前状态并判断同步状态是否符合预期，然后再进行CAS设置同步状态
+    tryRelease  释放同步状态，等待获取同步状态的线程将有机会获取到同步状态
+共享式
+    tryAcquireShared  获取同步状态，返回值>=0表示成功，反之失败
+    tryReleaseShared  释放同步状态
+isHeldExclusively 判断是否在独占模式下被线程占用，一般用于表示是否被当前线程占用。只有ConditionObject使用的时候才复写此方法
+
+提供了如下3个方法来对状态进行改变
+    getState()  获取当前同步状态
+    setState()  设置同步状态
+    compareAndSetState()  使用CAS设置同步状态，能保证状态设置的原子性
+
+独占式
+acquire(int arg)  {
+    // 获取成功则直接返回
+    if(tryAcquire(arg)) {
+        return;
+    }
+    // 失败的话，则创建一个新的Node，使用CAS将节点设置为尾结点
+    Node node = addWaiter(Node.EXCLUSIVE);
+   // 以死循环的方式来获取同步状态(一直检查当前线程对应的节点是否是head节点，自旋)，然后调用park，当前线程不进入CPU调度
+   // 只有head节点能成功获取同步状态，head节点释放后，会唤醒后继节点才能获取同步状态，同时保持队列的FIFO
+    if(acquireQueued(node,arg)) {
+        selfInterrupt()
+    }
+}
+
+release(int arg) {
+    if(tryRelease(arg)) {
+        Node h = head;
+        if(h!=null && h.waitStatus != 0) {
+           // 非初始状态，则唤醒后继节点
+            unparkSuccessor(h);
+            return true;
+        }
+    }
+    return false;
+}
+在unparkSuccessor里面，
+    如果node.waitStatus非初始化状态，则设置为初始状态
+    获取node的后继节点s，
+        如果为空或cancle状态，则从尾部往前找，找到离node节点最近的有效节点
+        非空，则唤醒s节点所在的线程
+
+
+
+共享式
+在acquireShared里面，如果tryAcquireShared 小于0，则创建一个新的节点，加入同步队列，在循环里面
+    如果插入节点的前驱节点为head,调用tryAcquireShared  ，如果大于等于0.则head节点出队列，重新设置Head节点，并检查后继节点是否处于等待状态，如果是则传播消息给后继节点
+    如果不是，则调用shouldParkAfterFailedAcquire判断能否进入，当前驱节点进入SIGNAL状态时，返回true，然后设置当前节点park，等待唤醒
+
+releaseShared 将head节点的状态设置为0,然后unpark，唤醒后继节点
+
+
+公平锁和非公平锁，区别在于，在获取锁的时候，公平锁先判断是否有前驱节点，如果有的话，则返回失败，没有的话则尝试，非公平锁使用CAS设置成功则表示获取了锁
+
+ReentrantLock独占且支持重入的锁，里面，state = 0 表示可以无锁状态；非0状态表示有锁，
+
+ReentranReadWriteLock 同一时刻允许多个读线程访问，但是在写线程的时候，所有的读和写都被阻塞，高16位用来保存读状态，低16位写状态
+
+
+tryAcquire 写锁是一个支持重入的排它锁，获取写锁时，
+    如果存在锁，是写锁且是当前线程，则增加写状态；没有写锁或获取锁的线程不是当前线程，则返回false，进入等待状态
+    如果不存在锁，对于非公平锁，则直接用CAS来设置状态；对于 公平锁，则先判断是否有前驱节点，有的话则获取失败，进入等待状态，没有的话，则用CAS来设置状态
+
+tryAcquireShared  读锁是一个支持重入的共享锁，获取读锁的时候
+    如果存在写锁且拥有锁的线程和当前线程不一致，则返回失败
+    不存在写锁，对于
+        
+
+锁降级：写锁降级为读锁，先获取写锁，再获取到读锁，然后释放写锁。为保持数据的一致性
