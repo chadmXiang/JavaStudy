@@ -1,0 +1,99 @@
+Unix file types
+ • Regular file – File containing user/app data (binary, text, whatever) – OS does not know anything about the format Other than “sequence of bytes”, akin to main memory
+ • Directory file – A file that contains the names and locations of other files
+ • Character special and block special files – Terminals (character special) and disks (block special) 
+• FIFO (named pipe) – A file type used for inter-process communication (details later) 
+• Socket – A file type used for network communication between processes
+
+Basic Unix I/O operations (system calls): 
+– Opening and closing files 
+    • open()and close() 
+– Reading and writing a file 
+    • read() and write() 
+– Changing the current file position (seek) 
+    • indicates next offset into file to read or write
+     • lseek()
+
+
+open Returns a small identifying integer file descriptor 
+    – fd == -1 indicates that an error occurred 
+• Each process created by a Unix shell begins life with three open files associated with a terminal: 
+    – 0: standard input 
+    – 1: standard output 
+    – 2: standard error
+
+Metadata is data about data, in this case file data 
+    • Per-file metadata maintained by kernel
+     § accessed by users with the stat and fstat functions
+
+The C standard library (libc) contains a collection of higher-level standard I/O functions
+Standard I/O models open files as streams
+
+
+Standard I/O functions use buffered I/O
+Buffer flushed to output fd on “\n ” or fflush call
+
+General rule: use the highest-level I/O functions you can – Many C programmers are able to do all of their work using the standard I/O functions • When to use standard I/O (fopen, fread, fwrite ...) – When working with disk or terminal files • When to use raw Unix I/O (open, read, write ...) – When you need to fetch file metadata – In rare cases when you need absolute highest performance
+
+
+6.2 I/O Models
+Before describing select and poll, we need to step back and look at the bigger picture, examining the basic differences in the five I/O models that are available to us under Unix:
+
+blocking I/O
+nonblocking I/O
+I/O multiplexing (select and poll)
+signal driven I/O (SIGIO)
+asynchronous I/O (the POSIX aio_functions)
+
+https://www.gnu.org/software/libc/manual/html_node/I_002fO-Overview.html
+https://m1-mosig-os.gitlab.io/lectures/lecture_0--Unix_IO.pdf
+https://stackoverflow.com/questions/8509700/c-standard-i-o-vs-unix-i-o-basics
+http://www.masterraghu.com/subjects/np/introduction/unix_network_programming_v1.3/ch06lev1sec2.html
+
+
+https://www.freebsd.org/doc/en_US.ISO8859-1/books/design-44bsd/overview-io-system.html
+
+https://serverfault.com/questions/124517/what-is-the-difference-between-unix-sockets-and-tcp-ip-sockets
+https://stackoverflow.com/questions/14973942/tcp-loopback-connection-vs-unix-domain-socket-performance
+https://lists.freebsd.org/pipermail/freebsd-performance/2005-February/001143.html
+
+A UNIX socket, AKA Unix Domain Socket, is an inter-process communication mechanism that allows bidirectional data exchange between processes running on the same machine.
+IP sockets (especially TCP/IP sockets) are a mechanism allowing communication between processes over the network. In some cases, you can use TCP/IP sockets to talk with processes running on the same computer (by using the loopback interface).
+
+UNIX domain sockets know that they’re executing on the same system, so they can avoid some checks and operations (like routing); which makes them faster and lighter than IP sockets. So if you plan to communicate with processes on the same host, this is a better option than IP sockets.
+
+Edit: As per Nils Toedtmann's comment: UNIX domain sockets are subject to file system permissions, while TCP sockets can be controlled only on the packet filter level.
+
+
+
+UDS unix domain socket  本地进程通信机制 
+UNIX domain sockets use the file system as the address name space.  This means you can use UNIX file permissions to control access to communicate with them
+ IP sockets over localhost are basically looped back network on-the-wire
+  IP.  There is intentionally "no special knowledge" of the fact that the
+  connection is to the same system, so no effort is made to bypass the
+  normal IP stack mechanisms for performance reasons
+TCP/IP socket 
+TCP sockets is part of the TCP protocol specification
+
+
+一个Unix 文件就是一个m个字节的序列，所有的IO设备，如网络、磁盘和终端，都被模型化为文件，Unix里面的everything都是文件，所有的输入和输出都被当做对应文件的读和写来执行。这种将设备映射为文件的方式，允许Unix内核引出一个简单、低级的应用接口，称为Unix IO，提供的接口有：
+open:一个应用程序通过此方法来要求内核打开相应的文件，内核返回一个非负整数，叫做文件描述符，后续所有的操作都基于这个文件描述符。内核记录了对应文件描述符的所有信息，应用程序只需要记住这个描述符
+seek:对于每个打开的文件，内核保存着一个文件位置k，表示从文件开头起始字节的偏移量，默认为0.应用程序可以通过seek显示的设置k的值
+read:
+write:
+close:
+
+标准IO库(libc)将一个打开的文件模型化为一个流，对于程序员而言，一个流就是一个指向FILE类型结构的指针
+
+标准IO是基于Unix IO实现的，UNIX对网络的抽象是一种称为套接字的文件类型，叫套接字描述符,直接对套接字描述符使用lseek方法会报错
+
+对于socket类型的，不能使用标准IO库
+
+
+https://www.classes.cs.uchicago.edu/archive/2017/winter/51081-1/LabFAQ/lab2/fileio.html
+
+https://man7.org/linux/man-pages/man7/unix.7.html
+
+http://www.cs.columbia.edu/~jae/4118/L03-file-io.html
+
+Figure 3.7, APUE
