@@ -72,14 +72,56 @@ ReentrantLock独占且支持重入的锁，里面，state = 0 表示可以无锁
 
 ReentranReadWriteLock 同一时刻允许多个读线程访问，但是在写线程的时候，所有的读和写都被阻塞，高16位用来保存读状态，低16位写状态
 
-
 tryAcquire 写锁是一个支持重入的排它锁，获取写锁时，
     如果存在锁，是写锁且是当前线程，则增加写状态；没有写锁或获取锁的线程不是当前线程，则返回false，进入等待状态
     如果不存在锁，对于非公平锁，则直接用CAS来设置状态；对于 公平锁，则先判断是否有前驱节点，有的话则获取失败，进入等待状态，没有的话，则用CAS来设置状态
 
 tryAcquireShared  读锁是一个支持重入的共享锁，获取读锁的时候
     如果存在写锁且拥有锁的线程和当前线程不一致，则返回失败
-    不存在写锁，对于
+    不存在写锁，对于读取不阻塞且CAS能增加成功时，
+        如果read锁之前是0时，设置firstread线程和firstReaderHolderCount 
+        如果当前线程是firstread，则累加firstReaderHolderCount 
+        非以上2种场景，从readholders里面找到对应的线程，，然后累加对应的holdercount
+非以上场景，则使用fullTryAcquireShared
         
-
 锁降级：写锁降级为读锁，先获取写锁，再获取到读锁，然后释放写锁。为保持数据的一致性
+
+LockSupport工具，当需要阻塞或唤醒一个线程时，使用LockSupport工具类来完成，park代表阻塞，unpark代表唤醒，支持超时
+
+Conditions 接口提供了类似于Object的monitor方法，配合Lock可以实现等待、通知模式，与Object的主要区别
+前置条件，二者都需要获取锁，不同的地方是Conditions需要调用Lock.newCondition()方法来获取
+每个Lock支持多个Condition，每个Condition有一个等待队列；每个Object只有一个一个等待队列
+Condition支持awaitUninterruptibly在等待状态时不响应中断，awaitUntil等待直到将来的某个时间；Object不支持
+
+在Object的monitor模型上，一个对象包含有一个同步队列和一个等待队列；并发包中的同步器拥有一个同步队列和多个等待队列
+
+实现是在AQS的内部类ConditionObject，
+    内部有一个FIFO队列，单链，只有指向next的
+    await方法：把当前线程构造一个新的节点加入等待队列，然后释放锁，唤醒同步队列中的后继节点，当前线程阻塞
+    signal方法：前提条件是必须获取了锁，唤醒head节点，从等待队列中删除head节点，然后调用enq将head节点加入等待队列，通过LockSupport.unpark方法唤醒head节点所在的线程。
+
+    被唤醒后的线程，从await方法中的while循环(isOnSyncQueue)退出，进而调用acquireQueue方法加入到同步队列中竞争。成功获取锁之后，将从await方法中返回，表明线程已经成功获取锁
+
+
+CountDownLock等待多线程完成
+    允许一个或多个线程等待其它线程完成操作，支持超时
+    以分类汇总场景为例子(多个线程子类里面的任务，主线程等子线程完成后汇总)：可以用join方法实现类似的需求，也可以使用CountDownLock来实现
+    CountDownLock.countDown
+CyclicBarrier 同步屏障
+    可以循环使用的屏障，让一组线程到达一个屏障时被阻塞，直到最后一个线程到达屏障时，屏障才会开门，所有被屏障拦截的线程才会继续运行
+    适用于多线程计算数据，最后合并计算结果的场景，
+    CyclicBarrier.await
+    public CyclicBarrier(int parties, Runnable barrierAction) 当到达屏障时，优先执行barrierAction，然后再执行其它被屏障拦截的线程
+
+二者区别：
+    CountDownLatch只能使用一次，CyclicBarrier的计算器可以使用reset方法来重置
+    CyclicBarrier提供了其它有用的方法，如getNumberWaiting获取被阻塞的线程数量，isBroken来了解阻塞的线程是否被中断
+
+Semaphore 信号量
+    用来控制同时访问特定资源的线程数量，可以用做流量控制，如数据库连接
+    acqure/release
+
+Exchanger 线程间交换数据
+    用于线程协作的工具类，提供了一个同步点，允许2个线程可以交换彼此的数据，通过exchange方法交换数据，如果第一个线程先执行exchange，它会一直等待第二个线程也执行exchange，当2个线程都 到达同步点时，2个线程就可以交换数据了
+    适用于校对工作，也可以用于遗传算法
+    exchange
