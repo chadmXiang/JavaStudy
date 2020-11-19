@@ -1,0 +1,90 @@
+Fork-join allows you to easily execute divide and conquer jobs, which have to be implemented manually if you want to execute it in ExecutorService. In practice ExecutorService is usually used to process many independent requests (aka transaction) concurrently, and fork-join when you want to accelerate one coherent job.
+
+public class ForkJoinPool extends AbstractExecutorService 
+
+fork/join框架设计如下：
+一个工作线程池：每个线程是一个标准的heavy thread(ForkJoinWorkerThread的子类)，有属于自己的工作队列，执行里面的任务
+所有fork/join的任务都是经量级的也执行类，ForkJoinTask的子类
+一个特殊的入队列和调度原则被工作线程用来管理和执行任务，通过提供的fork/join/isDone方法来触发任务执行，使用coInvoke来获取先fork再join多个任务
+一个简单的FJTaskRunnerGroup来管理线程池，执行给定的任务
+只需要关注2个参数：
+一是线程数量，依赖于CPU的核心数量
+二是设置合理的任务负载来提升并发性能，算法依赖
+
+Work-Stealing
+fork/join框架的核心是轻量级的任务调度。ForkJoinTask使用了work-stealing调度：
+每个工作线程在自己的任务队列里维护可执行的任务
+任务队列是双端队列，同时支持LIFO的push和pop操作，FIFO的take操作
+运行指定的线程A的任务生成的子任务，也会加入到线程A中工作队列中
+工作线程按照LIFO的顺序通过pop方法来获取任务并执行
+当一个工作线程没有任务可以执行的时候(对应的工作队列为空)，会随机的从其它线程stealing任务，使用FIFO规则(意思是执行线程自己的工作列队是LIFO，从头部开始执行；窃取任务是FIFO，从尾部窃取)
+当一个工作线程遇到join操作的时候，会执行其它任务，如果有，直到目标任务被通知已经完成。然后非阻塞的执行所有任务
+当一个工作线程没有任务可以执行且窃取任务失败时，回退然后稍后重新尝试窃取。当所有工作线程都处于IDLE状态，则停止窃取并阻塞直到有新的task被加入
+
+Deques
+基本的数据结构是一个可以扩容的数组，有2个指针
+top index 类似于以数组形式表示的栈顶，通过push和pop操作来改变
+base index类似于以数组形式表示的栈底，只能通过take操作来改变
+
+由于队列可能会被多个线程操作，使用了如下策略来解决同步和内存占用问题
+push和pop操作只能在当前所属的线程里面执行
+使用Lock来保证每次只有一个线程执行take操作窃取任务
+pop和take操作只有当队列非空的时候才能执行(在代码实现里面，用是CAS来保证队列操作的原子性的，解决只有一个任务，被2个线程同时获取的场景)
+
+top和base被定义为volatile，来保证可见性
+
+在work-stealing框架里面，工作线程对完全不知道程序里面的同步要求，他们只简单的生成、push、pop、take来管理任务队列状态以及执行任务。当没有足够的任务时，且无法成功窃取任务时，重试窃取任务的操作会导致线程变慢，因为加锁的原因
+Java里面对于此种场景的处理工具比较弱，但是在一般使用情况下是可接受的。当一个线程窃取任务失败时，会降低线程的优先级，调用Thread.yield然后再重试，然后向ThreadGroup注册非激活状态，当所有其它线程都 变成非激活状态时，则都阻塞，等待额外新的任务
+
+ForkJoinPool 里面的关键属性
+    // Instance fields
+    volatile long ctl;                   // main pool control
+    volatile int runState;               // lockable status
+    final int config;                    // parallelism, mode
+    int indexSeed;                       // to generate worker index
+    volatile WorkQueue[] workQueues;     // main registry
+    final ForkJoinWorkerThreadFactory factory;
+    final UncaughtExceptionHandler ueh;  // per-worker UEH
+    final String workerNamePrefix;       // to create worker name string
+    volatile AtomicLong stealCounter;    // also used as sync monitor
+
+WorkerQueue
+            // Instance fields
+        volatile int scanState;    // versioned, <0: inactive; odd:scanning
+        int stackPred;             // pool stack (ctl) predecessor
+        int nsteals;               // number of steals
+        int hint;                  // randomization and stealer index hint
+        int config;                // pool index and mode
+        volatile int qlock;        // 1: locked, < 0: terminate; else 0
+        volatile int base;         // index of next slot for poll
+        int top;                   // index of next slot for push
+        ForkJoinTask<?>[] array;   // the elements (initially unallocated)
+        final ForkJoinPool pool;   // the containing pool (may be null)
+        final ForkJoinWorkerThread owner; // owning thread or null if shared
+        volatile Thread parker;    // == owner during call to park; else null
+        volatile ForkJoinTask<?> currentJoin;  // task being joined in awaitJoin
+        volatile ForkJoinTask<?> currentSteal; // mainly used by helpStealer
+
+提交任务的方式和ThreadPoolExecutor类似，支持会ForkJoinTask.Runnable/Callable 3种对象，后面的2中都会转换成ForkJoinTask
+
+submit --> externalpush -->externalSubmit
+
+Summary of task execution methods
+Call from non-fork/join clients	Call from within fork/join computations
+Arrange async execution	execute(ForkJoinTask)	ForkJoinTask.fork()
+Await and obtain result	invoke(ForkJoinTask)	ForkJoinTask.invoke()
+Arrange exec and obtain Future	submit(ForkJoinTask)	ForkJoinTask.fork() (ForkJoinTasks are Futures)
+The common pool is by default constructed with default parameters, but these may be controlled by setting three system properties:
+
+java.util.concurrent.ForkJoinPool.common.parallelism - the parallelism level, a non-negative integer
+java.util.concurrent.ForkJoinPool.common.threadFactory - the class name of a ForkJoinPool.ForkJoinWorkerThreadFactory
+java.util.concurrent.ForkJoinPool.common.exceptionHandler - the class name of a Thread.UncaughtExceptionHandler
+
+
+
+https://www.logicbig.com/tutorials/core-java-tutorial/java-multi-threading/fork-and-join.html
+https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html
+http://gee.cs.oswego.edu/dl/papers/fj.pdf
+http://www.coopsoft.com/ar/CalamityArticle.html#faulty
+https://stackoverflow.com/questions/29966535/confused-by-docs-and-source-of-countedcompleter
+
