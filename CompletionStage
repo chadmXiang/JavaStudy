@@ -1,0 +1,164 @@
+AsyncTask 内部实现的核心就是一个ThreadPoolExecutor线程池
+
+Jobschduler是一种服务，可以根据系统当前的条件能决定是否执行任务，方便android系统统一管理所有应用的同类似任务，节省电量及内存使用，提升用户体验。
+
+注意：Job是运行在主线程的
+
+https://medium.com/google-developers/scheduling-jobs-like-a-pro-with-jobscheduler-286ef8510129
+https://stackoverflow.com/questions/24613494/what-is-a-jobservice-in-android
+https://stackoverflow.com/questions/54295161/jobservice-does-not-get-rescheduled-in-android-9
+
+
+RoleManagerService
+
+Completable
+
+
+
+FgThread.java
+HandlerExecutor implements Executor
+
+
+
+
+
+
+https://codsearch.cde.huawei.com/opengrok/system/xref/Android_Q/frameworks/base/services/core/java/com/android/server/FgThread.java
+
+https://stackoverflow.com/questions/23301598/transform-java-future-into-a-completablefuture
+https://stackoverflow.com/questions/34126688/java-8-completablefuture-vs-netty-future
+https://developer.ibm.com/zh/articles/j-cf-of-jdk8/
+http://reader.epubee.com/books/mobile/b6/b6dfd2c377f3d97121ed9dc9892a9590/text00025.html
+http://www.zhihengshi.com/2019/03/15/CompletableFuture%E8%AF%A6%E8%A7%A3/
+https://www.nurkiewicz.com/2013/05/java-8-definitive-guide-to.html
+
+
+
+public interface Consumer<T> {
+	void accept(T t);
+	
+	default Consumer<T> andThen(Consumer<? super T> after) {
+        Objects.requireNonNull(after);
+        return (T t) -> { accept(t); after.accept(t); };
+    }
+}
+
+public interface BiConsumer<T, U> {
+    void accept(T t, U u);
+
+    default BiConsumer<T, U> andThen(BiConsumer<? super T, ? super U> after) {
+        Objects.requireNonNull(after);
+
+        return (l, r) -> {
+            accept(l, r);
+            after.accept(l, r);
+        };
+    }
+}
+
+public interface Supplier<T>  {
+    T get();
+}
+
+
+
+public interface Function<T, R> {
+	R apply(T t);
+	
+	default <V> Function<V, R> compose(Function<? super V, ? extends T> before) {
+        Objects.requireNonNull(before);
+        return (V v) -> apply(before.apply(v));
+    }
+	
+	default <V> Function<T, V> andThen(Function<? super R, ? extends V> after) {
+        Objects.requireNonNull(after);
+        return (T t) -> after.apply(apply(t));
+    }
+	
+	static <T> Function<T, T> identity() {
+        return t -> t;
+    }
+}
+
+
+public interface BiFunction<T, U, R> {
+	R apply(T t, U u);
+
+	default <V> BiFunction<T, U, V> andThen(Function<? super R, ? extends V> after) {
+        Objects.requireNonNull(after);
+        return (T t, U u) -> after.apply(apply(t, u));
+    }
+}
+
+CompletionStage接口里面的方法，主要由几个关键单词组成的apply/accept/run 、 then/both/either 和async 组合成各方法的含义
+
+
+
+一个新的Stage的执行方式有3种
+同步执行
+异步执行，在一个ForkJoinPool线程池里面，以守护进程的形式
+异步执行，传入一个Executor作为任务执行的线程池
+
+支持的任务类型有
+Function 对应的调用方法是apply
+Consumer 对应的调用方法是accept
+Runnable 对应的调用方法是run
+
+单个Stage可能被以下3种stage的完成情况而触发
+then为前缀的方法,单个Stage的完成会触发
+both 相关的方法，同时被2个Stage的完成(可能会combine它们的结果)而触发，
+either 相关的方法，被2个任务中的任意一个完成而触发
+
+
+有2个方法可以确认stage是否正常执行或出现异常
+whenComplete  传入的参数是BiConsumer
+handle         传入的参数是BiFunction
+
+代表异常执行的有
+exceptionally
+
+多个任务的聚合关系有
+thenCombine 作为参数传入的任务other的执行结果作为当前任务的入参
+	public <U,V> CompletionStage<V> thenCombine(CompletionStage<? extends U> other,BiFunction<? super T,? super U,? extends V> fn);
+AcceptBoth 返回一个CompletionStage对象，当前任务和传入任务other的执行结果作为action的2个入参
+    public <U> CompletionStage<Void> thenAcceptBoth(CompletionStage<? extends U> other,BiConsumer<? super T, ? super U> action);
+runAfterBoth 当前任务和传入任务other都正常完成时，执行给定的任务action
+	    public CompletionStage<Void> runAfterBoth(CompletionStage<?> other,Runnable action);
+applyToEither  当前任务和传入任务other任意一个正常完成的时候，把完成结果作为入fn的入参数
+    public <U> CompletionStage<U> applyToEither(CompletionStage<? extends T> other,Function<? super T, U> fn);
+acceptEither 当前任务和传入任务other任意一个正常完成的时候，把完成结果作为入action的入参数
+    public CompletionStage<Void> acceptEither(CompletionStage<? extends T> other,Consumer<? super T> action);
+runAfterEither
+    public CompletionStage<Void> runAfterEither(CompletionStage<?> other,Runnable action);
+exceptionally
+    public CompletionStage<T> exceptionally(Function<Throwable, ? extends T> fn);
+whenComplete	
+    public CompletionStage<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
+handle
+    public <U> CompletionStage<U> handle(BiFunction<? super T, Throwable, ? extends U> fn);
+
+public interface CompletionStage<T> {
+
+	public <U> CompletionStage<U> thenApply(Function<? super T,? extends U> fn);
+    public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn);	
+    public <U> CompletionStage<U> thenApplyAsync(Function<? super T,? extends U> fn,Executor executor);	
+	
+	
+	public CompletionStage<Void> thenAccept(Consumer<? super T> action);
+	public CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action);
+	public CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action,Executor executor);
+
+    public CompletionStage<Void> thenRun(Runnable action);
+    public CompletionStage<Void> thenRunAsync(Runnable action);	
+    public CompletionStage<Void> thenRunAsync(Runnable action,Executor executor);
+	
+    public <U,V> CompletionStage<V> thenCombine(CompletionStage<? extends U> other,BiFunction<? super T,? super U,? extends V> fn);	
+    public <U,V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other,BiFunction<? super T,? super U,? extends V> fn);	
+    public <U,V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other,BiFunction<? super T,? super U,? extends V> fn,Executor executor);	
+    
+	public <U> CompletionStage<Void> thenAcceptBoth(CompletionStage<? extends U> other,BiConsumer<? super T, ? super U> action);
+    public <U> CompletionStage<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,BiConsumer<? super T, ? super U> action);
+    public <U> CompletionStage<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,BiConsumer<? super T, ? super U> action,Executor executor);
+	
+}
+
