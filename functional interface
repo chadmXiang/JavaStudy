@@ -1,0 +1,216 @@
+https://docs.oracle.com/javase/specs/jls/se8/html/jls-9.html#jls-9.8
+
+functional interface
+
+fields in Interface
+Every field declaration in the body of an interface is implicitly public, static, and final
+Every declarator in a field declaration of an interface must have a variable initializer, or a compile-time error occurs.The initializer need not be a constant expression 
+
+Methods in Interface
+Every method declaration in the body of an interface is implicitly public
+A default method is a method that is declared in an interface with the default modifier; its body is always represented by a block.A default method has a block body. This block of code provides an implementation of the method in the event that a class implements the interface but does not provide its own implementation of the method.
+An interface can declare static methods, which are invoked without reference to a particular object.A static method also has a block body, which provides the implementation of the method.
+An interface method lacking a default modifier or a static modifier is implicitly abstract
+An interface does not inherit static methods from its superinterfaces.
+support overload
+
+A member type declaration in an interface is implicitly public and static
+
+
+A functional interface in Java is an interface that contains only a single abstract (unimplemented) method. A functional interface can contain default and static methods which do have an implementation, in addition to the single unimplemented method.
+
+A Java functional interface can be implemented by a Java Lambda Expression.
+
+A Java lambda expression implements a single method from a Java interface. In order to know what method the lambda expression implements, the interface can only contain a single unimplemented method. In other words, the interface must be a Java functional interface.
+
+java.util.function中定义了几组类型的函数式接口以及针对基本数据类型的子接口。
+Predicate-- 传入一个参数，返回一个bool结果， 方法为boolean test(T t)
+Consumer-- 传入一个参数，无返回值，纯消费。 方法为void accept(T t)
+Function<T,R> -- 传入一个参数，返回一个结果，方法为R apply(T t)
+Supplier-- 无参数传入，返回一个结果，方法为T get()
+UnaryOperator-- 一元操作符， 继承Function<T,T>,传入参数的类型和返回类型相同。
+BinaryOperator-- 二元操作符， 传入的两个参数的类型和返回类型相同， 继承BiFunction<T,T,T>
+
+
+Predicate predicate = (value) -> value != null;
+
+Function<Long, Long> adder = (value) -> value + 3;
+
+Long resultLambda = adder.apply((long) 8);
+
+// 适用于在stream操作中改变一个对象的属于
+UnaryOperator<Person> unaryOperator = 
+ 
+        (person) -> { person.name = "New Name"; return person; };
+
+// 适用于sum, subtract, divide, multiply etc
+BinaryOperator<MyValue> binaryOperator =
+ 
+        (value1, value2) -> { value1.add(value2); return value1; };
+
+Supplier<Integer> supplier = () -> new Integer((int) (Math.random() * 1000D));
+
+Consumer<Integer> consumer = (value) -> System.out.println(value);
+
+Predicate Composition 用and()和or()方法
+
+Function composition 使用compose()和andThen
+
+
+
+
+
+函数式接口中可以额外定义多个抽象方法，但这些抽象方法签名必须和Object的public方法一样
+
+因为接口中定义的方法都是public类型的
+
+https://docs.oracle.com/javase/specs/jls/se8/html/jls-9.html#jls-9.8
+
+In addition to the usual process of creating an interface instance by declaring and instantiating a class (§15.9), instances of functional interfaces can be created with method reference expressions and lambda expressions (§15.13, §15.27).
+
+Anywhere a functional interface is expected, we have three choices:
+Pass an anonymous inner class.
+Pass a lambda expression.
+Pass a method reference instead of a lambda expression, in some cases.
+
+MethodReference:
+ExpressionName :: [TypeArguments] Identifier
+ReferenceType :: [TypeArguments] Identifier
+Primary :: [TypeArguments] Identifier
+super :: [TypeArguments] Identifier
+TypeName . super :: [TypeArguments] Identifier
+ClassType :: [TypeArguments] new
+ArrayType :: new
+
+
+But you can use lambdas without @FunctionalInterface annotation as well as you can override methods without @Override annotation.
+
+https://stackoverflow.com/questions/36881826/what-are-functional-interfaces-used-for-in-java-8
+http://tutorials.jenkov.com/java-functional-programming/functional-interfaces.html
+
+
+https://stackoverflow.com/questions/35329845/difference-between-completablefuture-future-and-rxjavas-observable
+
+https://stackoverflow.com/questions/34233375/return-completablefuturevoid-or-completablefuture
+
+https://developer.ibm.com/zh/languages/java/articles/j-lo-java8streamapi/
+
+
+https://developer.ibm.com/zh/articles/j-understanding-functional-programming-3/
+
+
+ 15.27 Lambda Expressions
+Lambda 表达式的语法很灵活。它们的声明方式类似 Java 中的方法，有形式参数列表和主体。参数的类型是可选的
+ A lambda expression is like a method: it provides a list of formal parameters and
+a body - an expression or block - expressed in terms of those parameters.
+
+LambdaParameters -> LambdaBody
+
+对lambda表达式求值可以生成一个functional interface的实例,当functional interface的实例被调用的时候，expression's body才会被执行
+ Evaluation of a lambda expression produces an instance of a functional interface
+(§9.8). Lambda expression evaluation does not cause the execution of the
+expression's body; instead, this may occur at a later time when an appropriate
+method of the functional interface is invoked.
+
+
+ Here are some examples of lambda expressions:
+() -> {} // No parameters; result is void
+() -> 42 // No parameters, expression body
+() -> null // No parameters, expression body
+() -> { return 42; } // No parameters, block body with return
+() -> { System.gc(); } // No parameters, void block body
+() -> { // Complex block body with returns
+if (true) return 12;
+else {
+int result = 15;
+for (int i = 1; i < 10; i++)
+result *= i;
+return result;
+}
+}
+(int x) -> x+1 // Single declared-type parameter
+(int x) -> { return x+1; } // Single declared-type parameter
+(x) -> x+1 // Single inferred-type parameter
+x -> x+1 // Parentheses optional for
+// single inferred-type parameter
+(String s) -> s.length() // Single declared-type parameter
+(Thread t) -> { t.start(); } // Single declared-type parameter
+s -> s.length() // Single inferred-type parameter
+t -> { t.start(); } // Single inferred-type parameter
+(int x, int y) -> x+y // Multiple declared-type parameters
+(x, y) -> x+y // Multiple inferred-type parameters
+(x, int y) -> x+y // Illegal: can't mix inferred and declared types
+(x, final y) -> x+y // Illegal: no modifiers with inferred types
+
+ Lambda 表达式中引用的变量必须是声明为 final 或是实际上 final（effectively final）的
+
+
+Java 8 中的流表示的是元素的序列。流中的元素可能是对象、int、long 或 double 类型。流作为一个高层次的抽象，并不关注流中元素的来源或是管理方式
+
+流的操作可以顺序执行或并行执行, 后者可以获得比前者更好的性能。但是如果实现不当，可能由于数据竞争或无用的线程同步，导致并行执行时的性能更差。一个流是否会并行执行，可以通过其方法 isParallel() 来判断。根据流的创建方式，一个流有其默认的执行方式。可以使用方法 sequential() 或 parallel() 来将其执行方式设置为顺序或并行。
+
+
+一个流的相遇顺序（encounter order）是流中的元素被处理时的顺序。流根据其特征可能有，也可能没有一个确定的相遇顺序。举例来说，从 ArrayList 创建的流有确定的相遇顺序；从 HashSet 创建的流没有确定的相遇顺序。大部分的流操作会按照流的相遇顺序来依次处理元素。如果一个流是无序的，同一个流处理流水线在多次执行时可能产生不一样的结果。比如 Stream 的 findFirst() 方法获取到流中的第一个元素。如果在从 ArrayList 创建的流上应用该操作，返回的总是第一个元素；如果是从 HashSet 创建的流，则返回的结果是不确定的。对于一个无序的流，可以使用 sorted 操作来排序；对于一个有序的流，可以使用 unordered() 方法来使其无序。
+
+Spliterator 需要绑定到流之后才能遍历其中的元素
+
+流操作可以是有状态或无状态的
+
+在对流进行处理时，不同的流操作以级联的方式形成处理流水线。一个流水线由一个源（source），0 到多个中间操作（intermediate operation）和一个终结操作（terminal operation）完成。
+
+流中间操作在应用到流上，返回一个新的流。下面列出了常用的流中间操作：
+map：通过一个 Function 把一个元素类型为 T 的流转换成元素类型为 R 的流。
+flatMap：通过一个 Function 把一个元素类型为 T 的流中的每个元素转换成一个元素类型为 R 的流，再把这些转换之后的流合并。The Java Stream flatMap() methods maps a single element into multiple elements
+filter：过滤流中的元素，只保留满足由 Predicate 所指定的条件的元素。
+distinct：使用 equals 方法来删除流中的重复元素。
+limit：截断流使其最多只包含指定数量的元素。
+skip：返回一个新的流，并跳过原始流中的前 N 个元素。
+sorted：对流进行排序。
+peek：返回的流与原始流相同。当原始流中的元素被消费时，会首先调用 peek 方法中指定的 Consumer 实现对元素进行处理。
+dropWhile：从原始流起始位置开始删除满足指定 Predicate 的元素，直到遇到第一个不满足 Predicate 的元素。
+takeWhile：从原始流起始位置开始保留满足指定 Predicate 的元素，直到遇到第一个不满足 Predicate 的元素。
+
+takeWhile和dropWhile在jdk 8 不能用？待确认
+
+常见的终结操作
+foreach
+foreachOrdered
+reduce
+count  返回流中元素的数量
+anyMatch
+allMatch
+noneMatch
+findAny
+findFirst
+collect
+min
+max
+toArray
+
+reduce 操作把一个流约简成单个结果。约简操作可以有 3 个部分组成：
+初始值：在对元素为空的流进行约简操作时，返回值为初始值。
+叠加器：接受 2 个参数的 BiFunction。第一个参数是当前的约简值，第二个参数是当前元素，返回结果是新的约简值。
+合并器：对于并行流来说，约简操作可能在流的不同部分上并行执行。合并器用来把部分约简结果合并为最终的结果。
+
+
+响应式编程使用三个核心概念：数据流，函数式编程和异步观察。
+
+反应式编程(reactive programming )是基于 函数式编程(functional programming )的, 所以也可以叫做 函数反应式编程 (functional reactive programming)
+
+
+
+
+FRP基本上就是面向异步事件流的编程了，这个异步事件流叫：Observable，一般叫：Stream
+Stream就是一个 按时间排序的Events(Ongoing events ordered in time)序列
+Stream是不可变(Immutability)的，任何操作都返回新的Stream, 且它是一个Monad（它有map和flatMap方法）。
+FRP的关注点在Stream，而FP的关注点在(Type, Operate)，Stream -> (Type, Operate)是一种泛化（generic），(Type, Operate) -> Stream 是一种派生。
+RP本身是建立于观察者模式之上的一种编程范式（级别同MV*），FP则更偏向底层解决一般化问题。引用wiki上的一句话：
+Functional reactive programming (FRP) is a programming paradigm for reactive programming on functional programming.
+
+https://www.zhihu.com/question/36431501
+https://stackoverflow.com/questions/30216979/difference-between-java-8-streams-and-rxjava-observables
+https://www.zhihu.com/question/28292740
+
+同样由于变量不可变,纯函数编程语言无法实现循环,这是因为For循环使用可变的状态作为计数器,而While循环或DoWhile循环需要可变的状态作为跳出循环的条件.因此在函数式语言里就只能使用递归来解决迭代问题,这使得函数式编程严重依赖递归.
+https://developer.ibm.com/zh/articles/j-understanding-functional-programming-1/
+
