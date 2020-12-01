@@ -44,12 +44,10 @@ FRP的关注点在Stream，而FP的关注点在(Type, Operate)，Stream -> (Type
 RP本身是建立于观察者模式之上的一种编程范式（级别同MV*），FP则更偏向底层解决一般化问题。引用wiki上的一句话：
 Functional reactive programming (FRP) is a programming paradigm for reactive programming on functional programming.
 
-https://www.zhihu.com/question/36431501
-https://stackoverflow.com/questions/30216979/difference-between-java-8-streams-and-rxjava-observables
-https://www.zhihu.com/question/28292740
+
 
 同样由于变量不可变,纯函数编程语言无法实现循环,这是因为For循环使用可变的状态作为计数器,而While循环或DoWhile循环需要可变的状态作为跳出循环的条件.因此在函数式语言里就只能使用递归来解决迭代问题,这使得函数式编程严重依赖递归.
-https://developer.ibm.com/zh/articles/j-understanding-functional-programming-1/
+
 
 
 Java Streams
@@ -60,18 +58,27 @@ https://docs.oracle.com/javase/8/docs/api/java/util/stream/package-summary.html
 https://docs.oracle.com/javase/8/docs/api/java/util/Spliterator.html
 
 
-Java 8 中的流表示的是元素的序列。流中的元素可能是对象、int、long 或 double 类型。流作为一个高层次的抽象，并不关注流中元素的来源或是管理方式
-
-流的操作可以顺序执行或并行执行, 后者可以获得比前者更好的性能。但是如果实现不当，可能由于数据竞争或无用的线程同步，导致并行执行时的性能更差。一个流是否会并行执行，可以通过其方法 isParallel() 来判断。根据流的创建方式，一个流有其默认的执行方式。可以使用方法 sequential() 或 parallel() 来将其执行方式设置为顺序或并行。
+Java 8 中的Stream表示的是元素的序列。流中的元素可能是对象、int、long 或 double 类型。流作为一个高层次的抽象，并不关注流中元素的来源或是管理方式
 
 
-一个流的相遇顺序（encounter order）是流中的元素被处理时的顺序。流根据其特征可能有，也可能没有一个确定的相遇顺序。举例来说，从 ArrayList 创建的流有确定的相遇顺序；从 HashSet 创建的流没有确定的相遇顺序。大部分的流操作会按照流的相遇顺序来依次处理元素。如果一个流是无序的，同一个流处理流水线在多次执行时可能产生不一样的结果。比如 Stream 的 findFirst() 方法获取到流中的第一个元素。如果在从 ArrayList 创建的流上应用该操作，返回的总是第一个元素；如果是从 HashSet 创建的流，则返回的结果是不确定的。对于一个无序的流，可以使用 sorted 操作来排序；对于一个有序的流，可以使用 unordered() 方法来使其无序。
+补充类图
 
-Spliterator 需要绑定到流之后才能遍历其中的元素
+Stream<T> 是表示流的接口，T 是流中元素的类型。对于基础类型的流，可以使用专门的类 IntStream、LongStream 和 DoubleStream。
 
-流操作可以是有状态或无状态的
 
-在对流进行处理时，不同的流操作以级联的方式形成处理流水线。一个流水线由一个源（source），0 到多个中间操作（intermediate operation）和一个终结操作（terminal operation）完成。
+流的操作可以顺序执行或并行执行, 后者可以获得比前者更好的性能。但是如果实现不当，可能由于数据竞争或无用的线程同步，导致并行执行时的性能更差。
+一个流是否会并行执行，可以通过其方法 isParallel() 来判断。
+根据流的创建方式，一个流有其默认的执行方式。可以使用方法 sequential() 或 parallel() 来将其执行方式设置为顺序或并行。
+
+
+Spliterator 需要绑定到流之后才能遍历其中的元素，
+
+
+流操作分为2类：
+中间操作 可以连接起来的流操作，类似filter/map，会返回一个新的stream。注意中间操作是延时执行的，只有当终结操作执行的时候才会触发
+终结操作 关闭流的操作,触发中间操作执行
+
+不同的流操作以级联的方式形成处理流水线。一个流水线由一个源（source），0 到多个中间操作（intermediate operation）和一个终结操作（terminal operation）完成。
 
 流中间操作在应用到流上，返回一个新的流。下面列出了常用的流中间操作：
 map：通过一个 Function 把一个元素类型为 T 的流转换成元素类型为 R 的流。
@@ -82,25 +89,35 @@ limit：截断流使其最多只包含指定数量的元素。
 skip：返回一个新的流，并跳过原始流中的前 N 个元素。
 sorted：对流进行排序。
 peek：返回的流与原始流相同。当原始流中的元素被消费时，会首先调用 peek 方法中指定的 Consumer 实现对元素进行处理。
-dropWhile：从原始流起始位置开始删除满足指定 Predicate 的元素，直到遇到第一个不满足 Predicate 的元素。
-takeWhile：从原始流起始位置开始保留满足指定 Predicate 的元素，直到遇到第一个不满足 Predicate 的元素。
 
-takeWhile和dropWhile在jdk 8 不能用？待确认
+
+
+终结操作会生成一个结果(result)或副作用(side-effect) . Stream只能遍历一次，遍历完后，这个Stream就是被消费掉了，不能再使用。如果需要重新遍历，则需要创建一个新的流
+
+
 
 常见的终结操作
-foreach
-foreachOrdered
-reduce
+foreach   消费流程中每个元素，并对其应用Lambda
+foreachOrdered  按照流的相遇顺序来处理元素，如果流有确定的相遇顺序的话，并对其应用Lambda
+reduce  把一个流约简成单个结果
 count  返回流中元素的数量
-anyMatch
-allMatch
-noneMatch
-findAny
-findFirst
-collect
-min
-max
-toArray
+anyMatch   检查流中的任意元素满足给定的条件，判断的条件由 Predicate 指定
+allMatch   检查流中的全部元素满足给定的条件，判断的条件由 Predicate 指定
+noneMatch  检查流中的没有元素=满足给定的条件，判断的条件由 Predicate 指定
+findAny  查找流中的任意一个元素，返回Optional 对象
+findFirst  查找流中的第一个元素，返回Optional 对象
+collect   把流归约成一个集合，如List/Map
+min    求流中元素的最小值
+max   求流中元素的最大值
+
+一个流的相遇顺序（encounter order）是流中的元素被处理时的顺序。流根据其特征可能有，也可能没有一个确定的相遇顺序。举例来说，从 ArrayList 创建的流有确定的相遇顺序；从 HashSet 创建的流没有确定的相遇顺序。大部分的流操作会按照流的相遇顺序来依次处理元素。如果一个流是无序的，同一个流处理流水线在多次执行时可能产生不一样的结果。比如 Stream 的 findFirst() 方法获取到流中的第一个元素。如果在从 ArrayList 创建的流上应用该操作，返回的总是第一个元素；如果是从 HashSet 创建的流，则返回的结果是不确定的。对于一个无序的流，可以使用 sorted 操作来排序；对于一个有序的流，可以使用 unordered() 方法来使其无序。
+
+短路求值，Java中&&和||运算符在流中的版本，有些操作不需要处理整个流就能得到结果，如anyMatch 、findFirst等，找到一个值就可以有结果了
+
+Optional<T>类一个容器，代表一个值存在或不存在，使用此类可以避免和null相关的Bug
+isPresent 将在Optional包含值的时候返回true,否则返回false
+ifPresent(Consumer<T> block) 值存在的时候会执行给定的代码块
+
 
 reduce 操作把一个流约简成单个结果。约简操作可以有 3 个部分组成：
 初始值：在对元素为空的流进行约简操作时，返回值为初始值。
@@ -108,10 +125,30 @@ reduce 操作把一个流约简成单个结果。约简操作可以有 3 个部
 合并器：对于并行流来说，约简操作可能在流的不同部分上并行执行。合并器用来把部分约简结果合并为最终的结果。
 
 
-https://developer.ibm.com/zh/articles/j-understanding-functional-programming-3/
-file:///D:/work/Java/lambda-jsr335-final/api/api/java/util/stream/package-summary.html
 
+collect 操作 表示的是另外一类的约简操作。与 reduce 不同在于，collect 会把结果收集到可变的容器中，如 List 或 Set。收集操作通过接口 java.util.stream.Collector 来实现。Java 已经在类 Collectors 中提供了很多常用的 Collector 实现
+
+流操作可以是有状态或无状态的，当一个有状态的操作在处理一个元素时，它可能需要使用处理之前的元素时保留的信息；无状态的操作可以独立处理每个元素
+distinct 和 sorted 是有状态操作的例子。distinct 操作从流中删除重复元素，它需要记录下之前已经遇到过的元素来确定当前元素是否应该被删除。sorted 操作对流进行排序，它需要知道所有元素来确定当前元素在排序之后的所在位置。
+filter 和 map 是无状态操作的例子。filter 操作在进行过滤时只需要看当前元素即可。map 操作可以独立转换当前元素。一般来说，有状态操作的运行代价要高于无状态操作，因为需要额外的空间保存中间状态信息。
+
+
+
+
+
+Spliterator basically means "splittable Iterator".
+
+Single thread can traverse/process the entire Spliterator itself, but the Spliterator also has a method trySplit() which will "split off" a section for someone else (typically, another thread) to process -- leaving the current spliterator with less work.
+
+Collector combines the specification of a reduce function (of map-reduce fame), with an initial value, and a function to combine two results (thus enabling results from Spliterated streams of work, to be combined.)
 
 
 https://stackoverflow.com/questions/19235606/understanding-spliterator-collector-and-stream-in-java-8
+
+https://www.zhihu.com/question/36431501
+https://stackoverflow.com/questions/30216979/difference-between-java-8-streams-and-rxjava-observables
+https://www.zhihu.com/question/28292740
+https://developer.ibm.com/zh/articles/j-understanding-functional-programming-1/
+https://developer.ibm.com/zh/articles/j-understanding-functional-programming-3/
+file:///D:/work/Java/lambda-jsr335-final/api/api/java/util/stream/package-summary.html
 
