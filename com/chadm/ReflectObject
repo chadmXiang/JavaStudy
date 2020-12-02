@@ -1,0 +1,23 @@
+public class ReflectObject {
+
+    private String name;
+    private int age;
+    public int score;
+
+    public ReflectObject(String name) {
+        this.name = name;
+    }
+
+    public ReflectObject(String name,int age) {
+        this.name = name;
+        this.age = age;
+    }
+
+    public int getAge() {
+        return age;
+    }
+
+    private void setName(String name) {
+        this.name = name;
+    }
+}
