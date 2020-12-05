@@ -20,6 +20,10 @@ public class ThreadDemo {
     public static void main(String [] args) {
 
         MyThread myThread = new MyThread();
+        myThread.setName("MyThread");
+        // 运行在主线程里面
+        myThread.run();
+        // 运行在子线程里面，start方法会启动线程，在JVM里面会调用run方法
         myThread.start();
 
         Thread runnable = new Thread(() -> {
@@ -31,7 +35,7 @@ public class ThreadDemo {
     static class MyThread extends Thread {
         @Override
         public void run() {
-            System.out.println("I am created form extends Thread");
+            System.out.println("Running in " + Thread.currentThread().getName());
         }
     }
 
