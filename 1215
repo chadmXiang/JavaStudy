@@ -1,0 +1,368 @@
+import io.reactivex.rxjava3.annotations.NonNull;
+import io.reactivex.rxjava3.core.*;
+import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.observers.DisposableMaybeObserver;
+import io.reactivex.rxjava3.observers.DisposableObserver;
+import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.subscribers.DisposableSubscriber;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+
+import java.util.concurrent.TimeUnit;
+
+public class RxJavaDemo {
+    public static void main(String[] args) throws InterruptedException {
+
+        Disposable d = Flowable.just("Hello world!")
+                .delay(1, TimeUnit.SECONDS)
+                .subscribeWith(new DisposableSubscriber() {
+                    @Override
+                    protected void onStart() {
+                        super.onStart();
+                        System.out.println("Start!");
+                        request(1);
+                    }
+
+                    @Override
+                    public void onNext(Object o) {
+                        System.out.println(o.toString());
+                        request(1);
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
+
+        // 事件发布Publisher
+        Flowable<String> flowable = Flowable.create(new FlowableOnSubscribe<String>() {
+            @Override
+            public void subscribe(@NonNull FlowableEmitter<String> emitter) throws Throwable {
+                System.out.println("Publisher subscribe = " + Thread.currentThread().getName());
+                emitter.onNext("Hello");
+                emitter.onNext("World");
+                emitter.onComplete();
+            }
+        }, BackpressureStrategy.BUFFER);
+
+        // 创建订阅者 Subscriber
+        Subscriber<String> subscriber = new Subscriber<String>() {
+            @Override
+            public void onSubscribe(Subscription s) {
+                System.out.println("Subscriber onSubscribe = " + s.toString() + " " + Thread.currentThread().getName());
+            }
+
+            @Override
+            public void onNext(String s) {
+                System.out.println("onNext = " + s.toString());
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                System.out.println("onError = " + t.toString());
+            }
+
+            @Override
+            public void onComplete() {
+                System.out.println("onComplete");
+            }
+        };
+
+        // 创建订阅关系 Subscription,先触发Subscriber.onSubscribe方法，然后再调用Publisher.subscribe
+        flowable.subscribeOn(Schedulers.io()) // 切换Publisher事件发布线程
+                .observeOn(Schedulers.single()) // 切换Subscriber事件订阅线程
+                .subscribe(subscriber);
+
+        Maybe.create(new MaybeOnSubscribe<String>() {
+            @Override
+            public void subscribe(@NonNull MaybeEmitter<String> emitter) throws Throwable {
+                emitter.onComplete();
+            }
+        }).subscribeWith(new DisposableMaybeObserver<String>() {
+            @Override
+            public void onSuccess(@NonNull String s) {
+
+            }
+
+            @Override
+            public void onError(@NonNull Throwable e) {
+
+            }
+
+            @Override
+            public void onComplete() {
+
+            }
+        });
+
+        Disposable disposable = Observable.just("Hello world!")
+                .subscribeWith(new DisposableObserver() {
+                    @Override
+                    protected void onStart() {
+                        super.onStart();
+                    }
+
+                    @Override
+                    public void onNext(@NonNull Object o) {
+
+                    }
+
+                    @Override
+                    public void onError(@NonNull Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+
+                    }
+                });
+
+        disposable.dispose();
+
+        Flowable.fromCallable(() -> {
+            Thread.sleep(1000);
+            return "Done";
+        })
+                .subscribeOn(Schedulers.computation()) // 切换Publisher事件发布线程
+                .observeOn(Schedulers.single()) // 切换Subscriber事件订阅线程
+                .subscribe(System.out::println, Throwable::printStackTrace);
+
+        Thread.sleep(2000);
+
+
+        Flowable.just("Hello world").subscribe(System.out::println);
+
+        Observable.create(emitter -> {
+            while (!emitter.isDisposed()) {
+                long time = System.currentTimeMillis();
+                emitter.onNext(time);
+                if (time % 2 != 0) {
+                    emitter.onError(new IllegalStateException("Odd millisecond!"));
+                    break;
+                }
+            }
+        })
+                .subscribe(System.out::println, Throwable::printStackTrace);
+
+
+    }
+}
+
+
+// 事件发布Publisher
+Flowable<String> flowable = Flowable.create(new FlowableOnSubscribe<String>() {
+    @Override
+    public void subscribe(@NonNull FlowableEmitter<String> emitter) throws Throwable {
+        System.out.println("Publisher subscribe = " + Thread.currentThread().getName());
+        emitter.onNext("Hello");
+        emitter.onNext("World");
+        emitter.onComplete();
+    }
+},BackpressureStrategy.MISSING);
+
+Maybe<String> maybe = Maybe.create(new MaybeOnSubscribe<String>() {
+    @Override
+    public void subscribe(@NonNull MaybeEmitter<String> emitter) throws Throwable {
+        emitter.onComplete();
+        emitter.onError(new Throwable());
+    }
+});
+
+// 创建订阅者 Subscriber
+Subscriber<String> subscriber = new Subscriber<String>() {
+    @Override
+    public void onSubscribe(Subscription s) {
+        System.out.println("Subscriber onSubscribe = " + s.toString() + " " + Thread.currentThread().getName());
+    }
+
+    @Override
+    public void onNext(String s) {
+        System.out.println("onNext = " + s.toString());
+    }
+
+    @Override
+    public void onError(Throwable t) {
+        System.out.println("onError = " + t.toString());
+    }
+
+    @Override
+    public void onComplete() {
+        System.out.println("onComplete");
+    }
+};
+
+// 创建订阅关系 Subscription,先触发Subscriber.onSubscribe方法，然后再调用Publisher.subscribe
+flowable.subscribeOn(Schedulers.io()) // 切换Publisher事件发布线程
+        .observeOn(Schedulers.single()) // 切换Subscriber事件订阅线程
+        .subscribe(subscriber);
+
+SchedulerPoolFactory
+
+ScheduledExecutorService next = Executors.newScheduledThreadPool(1, new RxThreadFactory("RxSchedulerPurge"));
+
+public class NewThreadWorker extends Scheduler.Worker implements Disposable 
+
+private final ScheduledExecutorService executor;
+
+executor = SchedulerPoolFactory.create(threadFactory)
+
+
+// 每次创建单个ScheduledExecutorService线程池，多次创建的时候会复用
+static final class PoolWorker extends NewThreadWorker
+
+
+static final class FixedSchedulerPool implements SchedulerMultiWorkerSupport
+
+final PoolWorker[] eventLoops;
+final int cores;
+
+
+static final class EventLoopWorker extends Scheduler.Worker
+
+private final PoolWorker poolWorker;
+
+volatile boolean disposed;
+
+static final class ScheduledWorker extends Scheduler.Worker
+
+final ScheduledExecutorService executor;
+
+public final class ComputationScheduler extends Scheduler implements SchedulerMultiWorkerSupport
+
+static final FixedSchedulerPool NONE;
+static final PoolWorker SHUTDOWN_WORKER;
+static final int MAX_THREADS;
+
+Scheduler computation()
+
+|-->RxJavaPlugins.onComputationScheduler(COMPUTATION);  返回默认ComputationScheduler
+
+FlowableSubscriptionOn()
+
+|--> subscribeOn
+
+|--> new FlowableSubscribeOn  在构造方法里，给内部变量scheduler赋值
+
+|--> RxJavaPlugins.onAssembly  返回FlowableSubscribeOn
+
+
+Disposable
+
+|--> subscribe
+
+Flowable
+
+|--> subscribe
+
+	|--> subscribeActual
+
+		|-->Schedule.createWorker 返回一个ScheduleWorker(一个ScheduledThreadPoolExecutor对象)
+
+   
+	|--> subscribe
+
+		|--> subscribeActual
+
+			|-->	FlowableSubscriptionOn.subscribeActual
+
+				|-->Schedule.createWorker 返回一个EventLoopWorker
+
+				|--> new SubscribeOnSubscriber 创建一个SubscribeOnSubscriber对象
+
+			|--> FlowableObserverOn.onSubscribe
+
+			|--> EventLoopWorker.schedule
+
+				|--> PoolWorker.scheduleActual
+
+					|--> ScheduledThreadPoolExecutor.submit执行任务
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+public abstract class Flowable<T> implements Publisher<T>
+
+public interface Publisher<T> {
+    void subscribe(Subscriber<? super T> var1);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+public interface Processor<T, R> extends Subscriber<T>, Publisher<R> {
+}
+
+
+public abstract class Observable<T> implements ObservableSource<T> 
+
+public interface ObservableSource<T> {
+    void subscribe(@NonNull Observer<? super T> observer);
+}
+
+
+public interface Observer<T> {
+    void onSubscribe(@NonNull Disposable d);
+
+    void onNext(@NonNull T t);
+
+    void onError(@NonNull Throwable e);
+
+    void onComplete();
+}
+
+
+public interface Subscriber<T> {
+    void onSubscribe(Subscription var1);
+
+    void onNext(T var1);
+
+    void onError(Throwable var1);
+
+    void onComplete();
+}
+
+public interface Subscription {
+    void request(long var1);
+
+    void cancel();
+}
+
+public interface Publisher<T> {
+    void subscribe(Subscriber<? super T> var1);
+}
+
+public interface Processor<T, R> extends Subscriber<T>, Publisher<R> {
+}
