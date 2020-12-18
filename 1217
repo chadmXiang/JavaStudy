@@ -1,0 +1,237 @@
+https://jakewharton.com/a-few-ok-libraries/
+
+okio
+
+Okio是一个实现java.io和java.nio的库，更方便访问、存储和处理数据。作为OkHttp组件的一部分，在Android中引入支持HTTP的客户端
+
+ByteString 代表一个不可变的字节序列。对于char数据，String是基础类型。
+
+Buffer 可变的字节序列，像ArrayList，读写Buffer的操作与queue类似，从尾部写，从头部读，不需要管理position/limit/capacities
+
+在内部实现，ByteString和Buffer做了一些优化来节约CPU和内存，如果把一个UTF-8字符串编码为ByteString，保存了一个引用，后面如果需要解码的时候可以直接使用，在encodeUtf8方法里面
+
+Buffer被实现为一个segment链表，当你从一个Buffer移动数据到另外一个Buffer的时候，重新设置了segment的所属队列，没有直接copy一份数据，在多线程场景下很有帮助，在buffer.write方法里面
+
+Source and Sink 移动数据
+在okio里面，有自己的stream类型Source和Sink，使用方式类似于InputStream和OutputStream
+
+class Buffer implements BufferedSink,BufferedSource
+
+主要差异：
+提供了IO语义层面的超时
+容易实现 ，容易使用
+没有人为区分字符流和字节流，都作为数据处理，读写都按字节来操作
+容易测试
+
+Buffer and ByteString 持有数据
+
+Buffer 内部保存的数据在Segment Pool里面
+
+BufferedSource and BufferedSink 更高效的移动数据
+
+
+
+OkHttp
+
+HTTP client主要工作是接收request,然后生成一个response
+
+
+Requests
+每个http请求包含一个URL，一个方法(像GET/POST),和一系列headers,可能包含有一个body:一种特定类型的数据流
+
+Responses
+Response响应request,返回一个code（像200/404）,一系列headers和一个可选的header
+
+当把一个request发送到OkHttp时， OkHttp会重写request然后再发送，OkHttp可能会增加一些headers，在原始的请求里面没有的，包括Content-Length, Transfer-Encoding, User-Agent, Host, Connection, and Content-Type
+也在增加一个Accept-Encoding，除非原始request里面已经有了，当需要cookies时，OkHttp会增加一个Cookie header
+
+有些request可能有缓存的response,当缓存不是最新的时候，OkHttp会做一个有条件的GET来下载更新，这种场景下，要求headers里面加上
+If-Modified-Since and If-None-Match 
+
+
+
+如果传输使用了压缩，OkHttp会丢弃响应头Content-Encoding and Content-Length，因为适用于解压后的response body
+
+当你请求的URL被移动，服务器可能会返回一个类似302的响应，来表明文档的新URL，OkHttp会rediect来获取一个最终的response
+如果需要鉴权，OkHttp会调用Authenticator 来处理，如果Authenticator 提供了证书，请求的时候会包含此证书
+
+重试
+有时连接会失败，OkHttp会使用一个不同的路由来重试
+
+
+
+OkHttp使用Call来建模，不管需要多少中间请求和响应，来满足request
+
+Call执行有2种方式：
+同步：当前线程会阻塞，直到response可读
+异步：把请求放在另外的线程，当response可读时使用callback来回调
+
+Calls可以在任意线程里面取消
+
+对于同步调用，在单独的线程里面管理同时发出的请求数量
+对于异步Call，Dispatch实现了请求数量管理策略
+
+response里面有一个string()方法，对于小文件，可以简单高效的将response body转换成string。如果response body比较大，超过1M，则避免使用string(),因为此方法会将内容全部加载到memory里面，在这种场景下，应该把respnse当作stream来处理
+
+同步调用，直接等待response然后再处理client.newCall(request).execute().use
+
+异步调用，client.newCall(request).enqueue(object : Callback
+
+则传入一个callback，当reponse可用时，回调此callbase,okhttp不支持异步API把response分块处理
+
+访问请求头
+使用addHeader来增加新的header,如果存在，不需要删除，addHeader在处理的时候，如果value存在，则先remove掉，然后再添加新的value
+使用header(name)来获取一个head,使用headers(name)，获取所有值，作为一个List返回
+
+post一个string
+val request = Request.Builder() 
+.url("https://api.github.com/markdown/raw") 
+.post(postBody.toRequestBody(MEDIA_TYPE_MARKDOWN)) 
+.build()
+
+post一个streaming
+RequestBody requestBody = new RequestBody() { @Override public MediaType contentType() { return MEDIA_TYPE_MARKDOWN; } @Override public void writeTo(BufferedSink sink) throws IOException { sink.writeUtf8("Numbers\n"); sink.writeUtf8("-------\n"); for (int i = 2; i <= 997; i++) { sink.writeUtf8(String.format(" * %s = %s\n", i, factor(i))); } } private String factor(int n) { for (int i = 2; i < n; i++) { int x = n / i; if (x * i == n) return factor(x) + " × " + i; } return Integer.toString(n); } }; Request request = new Request.Builder() .url("https://api.github.com/markdown/raw") .post(requestBody) .build();
+
+
+post一个file
+val file = File("README.md") 
+val request = Request.Builder()
+ .url("https://api.github.com/markdown/raw")
+ .post(file.asRequestBody(MEDIA_TYPE_MARKDOWN))
+ .build()
+
+post form参数
+
+val formBody = FormBody.Builder() .add("search", "Jurassic Park") .build() val request = Request.Builder() .url("https://en.wikipedia.org/w/index.php") .post(formBody) .build()
+
+post有一个part的request
+val requestBody = MultipartBody.Builder() .setType(MultipartBody.FORM) .addFormDataPart("title", "Square Logo") .addFormDataPart("image", "logo-square.png", File("docs/images/logo-square.png").asRequestBody(MEDIA_TYPE_PNG)) .build() val request = Request.Builder() .header("Authorization", "Client-ID $IMGUR_CLIENT_ID") .url("https://api.imgur.com/3/image") .post(requestBody) .build()
+
+Moshi 用来把json和java互相转换
+
+response缓存
+
+调用call.cancel()来取消一个Call
+
+使用Timeouts
+private val client: OkHttpClient = OkHttpClient.Builder() .
+connectTimeout(5, TimeUnit.SECONDS)
+ .writeTimeout(5, TimeUnit.SECONDS) 
+.readTimeout(5, TimeUnit.SECONDS)
+ .callTimeout(10, TimeUnit.SECONDS)
+ .build()
+
+
+使用OkHttpClient.newBuilder() 来配置单个Call的配置
+
+处理鉴权
+
+Response.challenges() 获取鉴权格式
+
+Credentials.basic(username, password)
+
+Interceptors are a powerful mechanism that can monitor, rewrite, and retry calls
+
+A call to chain.proceed(request) is a critical part of each interceptor’s implementation. This simple-looking method is where all the HTTP work happens, producing a response to satisfy the request. If chain.proceed(request) is being called more than once previous response bodies must be closed
+
+OkHttp attempts to balance two competing concerns:
+Connectivity to as many hosts as possible. That includes advanced hosts that run the latest versions of boringssl and less out of date hosts running older versions of OpenSSL.
+Security of the connection. This includes verification of the remote webserver with certificates and the privacy of data exchanged with strong ciphers.
+
+
+Events allow you to capture metrics on your application’s HTTP calls. Use events to monitor:
+The size and frequency of the HTTP calls your application makes. If you’re making too many calls, or your calls are too large, you should know about it!
+The performance of these calls on the underlying network. If the network’s performance isn’t sufficient, you need to either improve the network or use less of it.
+
+
+Subclass EventListener and override methods for the events you are interested in
+
+Although you provide only the URL, OkHttp plans its connection to your webserver using three types: URL, Address, and Route.
+
+OkHttp implements an optional, off by default,
+
+Cache Events are exposed via the EventListener API.
+
+
+https://www.vogella.com/tutorials/Retrofit/article.html
+
+REST是设计风格而不是标准。REST通常基于HTTP、URI、XML以及HTML这些现有的广泛流行的协议和标准。
+资源是由URI来指定。
+对资源的操作包括获取、创建、修改和删除，这些操作正好对应HTTP协议提供的GET、POST、PUT和DELETE方法。
+通过操作资源的表现形式来操作资源。
+资源的表现形式则是XML或者HTML，取决于读者是机器还是人、是消费Web服务的客户软件还是Web浏览器。当然也可以是任何其他的格式，例如JSON。
+
+
+
+符合REST设计风格的Web API称为RESTful API。它从以下三个方面资源进行定义：
+直观简短的资源地址：URI，比如：http://example.com/resources。
+传输的资源：Web服务接受与返回的互联网媒体类型，比如：JSON，XML，YAML等。
+对资源的操作：Web服务在该资源上所支持的一系列请求方法（比如：POST，GET，PUT或DELETE）
+
+https://github.com/vogellacompany/codeexamples-android/tree/master/com.vogella.android.retrofitstackoverflow
+
+https://stackoverflow.com/questions/39183294/why-use-retrofit-when-we-have-okhttp?rq=1
+
+okhttp 是低层次的网络操作，处理HTTP操作，如连接管理，缓存、重定向，监听网络连接中的各种状态，以及拦截器定义
+
+retrofit 是高层次的REST操作，基于okhttp，主要处理URL组装，和response有解析，复用okhttp来处理HTTP操作
+
+https://fragmentedpodcast.com/episodes/46/
+
+subscribeOn() vs observeOn()
+subscribeOn works downstream and upstream. All the tasks above and below it would use the same thread.
+observeOn works downstream only.
+consecutive subscribeOn methods won’t change the thread. Only the first subscribeOn thread would be used.
+consecutive observeOn methods will change the thread.
+After an observeOn(), putting a subscribeOn() won’t change the thread. Hence observeOn should generally come after a subscribeOn.
+
+https://stackoverflow.com/questions/47645371/rxjava-observeon-and-subscribeon-in-retrofit
+
+https://stackoverflow.com/questions/44984730/rxandroid-whats-the-difference-between-subscribeon-and-observeon
+
+在RxJava简介里面有，默认Scheduler运行在守护进程里面，RxJava里面创建的线程都是守护线程，所以需要在主线程里面sleep一段时间，等待Scheduler完成任务，在原理分析那一节，需要改一点东西，打印没有出来的原因就是这个
+
+数学运算符和聚合运算符
+
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Conditional-and-Boolean-Operators.md
+Conditional Operators adn Boolean Operators
+
+This section explains the BlockingObservable subclass. A Blocking Observable extends the ordinary Observable class by providing a set of operators on the items emitted by the Observable that block.
+
+
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Connectable-Observable-Operators.md
+
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Creating-Observables.md
+
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Filtering-Observables.md
+
+创建方式
+
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Creating-Observables.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Phantom-Operators.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Subject.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/String-Observables.md
+
+
+支持的操作
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Conditional-and-Boolean-Operators.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Filtering-Observables.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Connectable-Observable-Operators.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Combining-Observables.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Mathematical-and-Aggregate-Operators.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Blocking-Observable-Operators.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Operator-Matrix.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Parallel-flows.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Async-Operators.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Observable-Utility-Operators.md
+
+
+错误处理
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Error-Handling-Operators.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Error-Handling.md
+
+
+
+自定义操作Opertator
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Implementing-Your-Own-Operators.md
+https://github.com/ReactiveX/RxJava/blob/3.x/docs/Plugins.md

@@ -1,0 +1,217 @@
+二进制位bit：计算机，所有的信息都是bit的形式存在，每个bit有0和1两种状态
+字节byte:8个二进制位是一个byte
+ASCII ：美国制定了一套字符编码，对英语字符与二进制位之间的关系，做了统一规定。规定了128个字符的编码，用一个byte来表示，只占用7个bit，最高为0
+Unicode ：是一个符号集合，定义了符号的二进制代码，但是没有规定如何存储二进制代码
+UTF-8：是Unicode的实现方式之一，使用变长的编码形式，可以用1-4个byte来表示一个符号
+
+UTF-16是Unicode字符编码五层次模型的第三层：字符编码表（Character Encoding Form，也称为"storage format"）的一种实现方式。即把Unicode字符集的抽象码位映射为16位长的整数（即码元）的序列，用于数据存储或传递。Unicode字符的码位，需要1个或者2个16位长的码元来表示，因此这是一个变长表示。
+UTF是"Unicode/UCS Transformation Format"的首字母缩写，即把Unicode字符转换为某种格式之意。UTF-16正式定义于ISO/IEC 10646-1的附录C，而RFC2781也定义了相似的做法。
+
+
+Unicode规范定义了，每个文件的最前面分别加入一个表示编码顺序的字符，用FEFF来表示，正好是2个字节。如果文本文件的头2个字节是FEFF，表示用的大头方式(第一个字节在前)，用FFFE的表示用的小头方式(第二个字节在前)
+
+“通用字符集”（Universal Character Set，简称UCS）
+
+Unicode和UCS是来自2个不同的组织，Unicode对集合添加了一些新的规则和规范
+
+https://unicode.org/faq/utf_bom.html
+
+从File，从Socket
+
+
+        // character streams read and write
+        Reader reader;
+        Writer wiWriter;
+        
+        // stream of bytes read and write
+        InputStream inputStream;
+        OutputStream outputStream;
+
+
+        
+        Charset.forName("UTF-8");
+       // 
+        String s = "这是一段中文字符串";
+        byte[] b = s.getBytes("UTF-8");
+        String n = new String(b,"UTF-8");
+        
+        Charset charset = Charset.forName("UTF-8");
+        ByteBuffer byteBuffer = charset.encode(s);
+        CharBuffer charBuffer = charset.decode(byteBuffer);
+
+
+https://stackoverflow.com/questions/4655250/difference-between-utf-8-and-utf-16?noredirect=1&lq=1
+https://stackoverflow.com/questions/39955169/which-encoding-does-java-uses-utf-8-or-utf-16?noredirect=1&lq=1
+
+https://www.zhihu.com/question/39262026
+https://developer.ibm.com/zh/articles/j-lo-chinesecoding/
+base64 用来将binary data转换成字符流，更适用于网络传输场景
+https://stackoverflow.com/questions/201479/what-is-base-64-encoding-used-for
+
+https://stackoverflow.com/questions/9655181/how-to-convert-a-byte-array-to-a-hex-string-in-java
+
+https://stackoverflow.com/questions/8860383/why-do-we-need-both-ucs-and-unicode-character-sets
+
+
+D:\7-Zip\7z.exe l D:\work\Java\zip\我的.rar -y -r my.txt
+
+-y 表示yes
+-r 表示递归
+l 表示列出所有文件
+my.txt表示要查找的文件
+-o 表示解压的目标
+
+D:\7-Zip\7z.exe e D:\work\Java\zip\Lang.rar zh-cn.txt -y -r -oD:\work\Java\zip
+
+
+https://www.rarlab.com/rar_add.htm
+
+boolean isFileExsit(String compress,String target) {
+    
+}
+
+String extractFile(String compress,String target,String desDict) {
+
+}
+
+如果不存在，则直接解压对应的文件；如果不存在，则把所有的压缩文件解压出来，然后再找，直到找到文件为止
+
+如果文件重名，则文件名把路径都加上
+
+如果存在，把目标文件解压到压缩包的同级目录；不存在，创建一个压缩文件同名目录，把所有压缩包放这个路径下
+
+命令执行，处理命令结果
+
+从Excel里面读取文件，压缩包名称，以及apk名称，还有版本号
+
+
+https://tech.meituan.com/2019/02/14/talk-about-java-magic-class-unsafe.html
+https://stackoverflow.com/questions/5574241/why-does-sun-misc-unsafe-exist-and-how-can-it-be-used-in-the-real-world
+https://stackoverflow.com/questions/16819234/where-is-sun-misc-unsafe-documented
+
+
+
+总共10个字符，其中
+第1个代表文件类型
+第234位代表所有者的权限，r读 w写 x可执行
+第456代表同群组的权限
+第789代表非本群组的权限
+
+第一栏代表这个文件的类型与权限(permission)：
+这个地方最需要注意了！仔细看的话，你应该可以发现这一栏其实共有十个字符：(图2.1.1及图2.1.2内的权限并无关系)
+
+
+图2.1.2、文件的类型与权限之内容
+
+第一个字符代表这个文件是『目录、文件或链接文件等等』：
+
+当为[ d ]则是目录，例如上表档名为『.gconf』的那一行；
+当为[ - ]则是文件，例如上表档名为『install.log』那一行；
+若是[ l ]则表示为连结档(link file)；
+若是[ b ]则表示为装置文件里面的可供储存的接口设备(可随机存取装置)；
+若是[ c ]则表示为装置文件里面的串行端口设备，例如键盘、鼠标(一次性读取装置)。
+
+接下来的字符中，以个为一组，且均为『rwx』 的三个参数的组合。其中，[ r ]代表可读(read)、[ w ]代表可写(write)、[ x ]代表可执行(execute)。 要注意的是，这三个权限的位置不会改变，如果没有权限，就会出现减号[ - ]而已。
+
+第一组为『文件拥者的权限』，以『install.log』那个文件为例， 该文件的拥有者可以读写，但不可执行；
+第二组为『同群组的权限』；
+第组为『其他非本群组的权限』
+
+http://igoro.com/archive/what-really-happens-when-you-navigate-to-a-url/
+
+一些常用的状态码
+100~199：指示信息，表示请求已接收，继续处理
+200~299：请求成功，表示请求已被成功接收、理解
+300~399：重定向，要完成请求必须进行更进一步的操作
+400~499：客户端错误，请求有语法错误或请求无法实现
+500~599：服务器端错误，服务器未能实现合法的请求
+
+
+Client
+URL --> IP  --> http request with heads
+
+Server handle request --> http response
+
+client根据response code进行处理，如301，401等，来决定下一步怎么处理
+
+然后成功建立连接，可以互相发送消息
+
+其中okio处理socket读写
+
+其中retrofit 处理 url with headers 和 http response 解析
+
+OkHttp负责处理http 连接过程的管理
+
+RxJava 可以将retrofit解析后的数据进行流式处理，在不同的线程处理，分发数据到不同的线程上处理，并把结果发送到UI线程
+
+okhttp 处理连接过程中几个拦截器，任务管理，连接池复用
+
+OkHttp将整个请求的复杂逻辑切成了一个一个的独立模块并命名为拦截器(Interceptor)，通过责任链的设计模式串联到了一起，最终完成请求获取响应结果。
+
+先来大概的了解下每一个拦截器的作用
+retryAndFollowUpInterceptor——失败和重定向拦截器
+BridgeInterceptor——封装request和response拦截器
+CacheInterceptor——缓存相关的过滤器，负责读取缓存直接返回、更新缓存
+ConnectInterceptor——连接服务，负责和服务器建立连接 这里才是真正的请求网络
+CallServerInterceptor——执行流操作(写出请求体、获得响应数据) 负责向服务器发送请求数据、从服务器读取响应数据 进行http请求报文的封装与请求报文的解析
+
+
+https://square.github.io/retrofit/
+
+
+retrofit
+
+使用annotation来描述一个request应该怎么被处理
+
+request 方法  HTTP, GET, POST, PUT, PATCH, DELETE, OPTIONS and HEAD
+
+
+url操作   一个请求url可以通过替换方法里面的代码块和参数来动态更新，一个替换块必须用{}包起来，且在参数里面使用同样的名字用@path注解
+@GET("group/{id}/users")
+Call<List<User>> groupList(@Path("id") int groupId);
+
+query查询也可以添加
+@GET("group/{id}/users")
+Call<List<User>> groupList(@Path("id") int groupId, @Query("sort") String sort);
+
+对于更复杂的请求参数可以使用@QueryMap
+
+request body
+通过@Body注解，可以将一个对象作为request的body来使用
+
+
+
+Header操作
+通过Headers注解可以设置请求头
+@Headers({
+    "Accept: application/vnd.github.v3.full+json",
+    "User-Agent: Retrofit-Sample-App"
+})
+@GET("users/{username}")
+Call<User> getUser(@Path("username") String username);
+
+headers不会互相复写，所有名称相同的header都会被加入到request里面
+
+一个请求头可以使用@Header注解来动态更新，使用@Header注解时必须提供参数，如果值为null,则被忽略，非空则调用其toString方法，然后使用这个值
+@GET("user")
+Call<User> getUser(@Header("Authorization") String authorization)
+
+Call实例支持同步执行和异步执行，每个Call只能被使用一次，使用clone方法可以创建一个新的实例来使用
+
+在Android里面，callback会在主线程里面执行，在JVM上，callback会在调用http request的线程上执行
+
+converters
+
+默认情况下，Retrofit只支持把HTTP body作为Okhttp的ResponseBody类型，通过@body注解只能接收RequestBody 类型
+
+可以使用转换器来支持其它 类型：
+Gson: com.squareup.retrofit2:converter-gson
+Jackson: com.squareup.retrofit2:converter-jackson
+Moshi: com.squareup.retrofit2:converter-moshi
+Protobuf: com.squareup.retrofit2:converter-protobuf
+Wire: com.squareup.retrofit2:converter-wire
+Simple XML: com.squareup.retrofit2:converter-simplexml
+JAXB: com.squareup.retrofit2:converter-jaxb
+Scalars (primitives, boxed, and String): com.squareup.retrofit2:converter-scalars
+
+可以自定义converters，来处理非以上几种类型的
