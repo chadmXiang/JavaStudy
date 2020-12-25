@@ -61,6 +61,10 @@ ByteString和Buffer的概念
 
 Segment pool管理数据移动的原理
 
+TimeOut AsyncTimeout
+
+Throttler
+
 
 Segment
 
